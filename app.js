@@ -3,12 +3,33 @@ const KEY="bitd-sheet-v3";        // current storage: all characters + crews
 const KEY_V2="bitd-spider-v2";     // old single-sheet storage (read for migration, never deleted)
 const {HERITAGES,BACKGROUNDS,VICES,TRAUMAS,ATTRS,ITEMS,LOADS,LIMITS}=window.CORE;
 const PLAYBOOKS=window.PLAYBOOKS;
+const CREW=window.CREW;
 
 /* ---------------- state ---------------- */
+function defaultCrew(name){
+  return {
+    name:name||"", type:"hawkers", reputation:null, lair:"",
+    hunting:"", huntingDeal:null, huntingOp:"",
+    tier:0, hold:"strong", rep:0, turf:0, heat:0, wanted:0, coin:2, crewXp:0,
+    xpTrigger:"",
+    abilities:[],        // {id,name,text,on}   typed in from the crew's own sheet
+    upgrades:{},         // upgradeId -> boxes marked
+    customUpgrades:[],   // {id,name,text,boxes,marked}
+    cohorts:[],          // see crew.js
+    claims:[],           // {id,name,text}
+    contacts:[],         // {id,name,desc,fav}
+    factions:[],         // {id,name,status}
+    notes:"",
+  };
+}
+function normalizeCrew(raw){
+  raw=JSON.parse(JSON.stringify(raw||{}));
+  return mergeDefaults(defaultCrew(raw.name),raw);
+}
 function defaultState(pbId){
   const pb=PLAYBOOKS[pbId];
   const s={
-    playbook:pbId,
+    playbook:pbId, crewId:null,
     name:"",alias:"",crew:"",look:"",purveyor:"",
     heritage:null,background:null,vice:null,
     stress:0, trauma:[], traumaCount:0,
@@ -48,6 +69,22 @@ function normalize(raw){
 }
 function uid(){ return "ch"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
+/* Every character points at a crew. With no crew yet, make one from the
+   character's free-text "Crew" name; otherwise share the first crew. */
+function ensureCrews(s){
+  s.crews=s.crews||{};
+  for(const id in s.crews) s.crews[id]=normalizeCrew(s.crews[id]);
+  for(const id in s.characters){
+    const ch=s.characters[id];
+    if(!ch.crewId||!s.crews[ch.crewId]){
+      const first=Object.keys(s.crews)[0];
+      if(first) ch.crewId=first;
+      else{ ch.crewId="crew"+uid(); s.crews[ch.crewId]=defaultCrew(ch.crew); }
+    }
+  }
+  return s;
+}
+
 function loadStore(){
   try{
     const raw=localStorage.getItem(KEY);
@@ -55,8 +92,7 @@ function loadStore(){
       const s=JSON.parse(raw);
       if(s&&s.version===3&&s.characters&&s.characters[s.activeId]){
         for(const id in s.characters) s.characters[id]=normalize(s.characters[id]);
-        s.crews=s.crews||{};
-        return s;
+        return ensureCrews(s);
       }
     }
   }catch(e){}
@@ -64,11 +100,12 @@ function loadStore(){
   try{ const old=localStorage.getItem(KEY_V2); if(old) ch=normalize(JSON.parse(old)); }catch(e){}
   if(!ch) ch=normalize(window.DEFAULT_CHARACTER);
   const id=uid();
-  return {version:3,activeId:id,characters:{[id]:ch},crews:{}};
+  return ensureCrews({version:3,activeId:id,characters:{[id]:ch},crews:{}});
 }
 const store=loadStore();
 let state=store.characters[store.activeId];
 const PB=PLAYBOOKS[state.playbook];
+const crew=store.crews[state.crewId];
 
 let saveTimer=null;
 function saveNow(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); return true; }catch(e){ return false; } }
@@ -82,10 +119,24 @@ function flashSaved(){ const el=document.getElementById("saved"); if(!el)return;
 /* Anything that changes a track size (crew upgrades, later) registers a
    source here: (state, store) => ({stress:+1, trauma:+1, ...}). */
 const MOD_SOURCES=[];
-function limit(key){
-  let n=LIMITS[key];
+function modSum(key){
+  let n=0;
   MOD_SOURCES.forEach(src=>{ n+=(src(state,store)||{})[key]||0; });
   return n;
+}
+function limit(key){ return (LIMITS[key]||0)+modSum(key); }
+
+/* Crew upgrades whose boxes are all marked, with the effects they apply. */
+function upgradeDone(u){ return ((crew.upgrades[u.id])||0)>=u.boxes; }
+MOD_SOURCES.push(()=>{
+  const out={};
+  CREW.UPGRADES.forEach(u=>{
+    if(u.effects&&upgradeDone(u)) for(const k in u.effects) out[k]=(out[k]||0)+u.effects[k];
+  });
+  return out;
+});
+function crewEffectLabels(){
+  return CREW.UPGRADES.filter(u=>u.effects&&upgradeDone(u)).map(u=>u.name+" ("+u.badge+")");
 }
 
 /* ---------------- helpers ---------------- */
@@ -155,33 +206,36 @@ document.getElementById("pb-tagline").textContent=PB.tagline;
 const app=document.getElementById("app");
 const refreshers=[]; // light refreshers for glance + tracks
 
-function sec(title,open){
+function sec(title,open,container){
   const d=el("details","sec"); if(open)d.open=true;
   const s=el("summary",null,'<span class="dot"></span>'+title+'<span class="tw">▸</span>');
   const b=el("div","sec-body");
   d.appendChild(s); d.appendChild(b);
-  app.appendChild(d);
+  (container||app).appendChild(d);
   return b;
 }
+/* textField / chipSelect bind to the character by default, or to any object via opts.obj / obj */
 function textField(label,key,opts={}){
+  const o=opts.obj||state;
   const f=el("div","field");
   f.appendChild(el("label",null,label));
   const inp=opts.area?el("textarea"):el("input");
   if(!opts.area)inp.type="text";
-  inp.value=state[key]||"";
+  inp.value=o[key]||"";
   if(opts.ph)inp.placeholder=opts.ph;
-  inp.oninput=()=>{ state[key]=inp.value; save(); if(opts.glance)updateGlance(); };
+  inp.oninput=()=>{ o[key]=inp.value; save(); if(opts.glance)updateGlance(); };
   f.appendChild(inp);
   return f;
 }
-function chipSelect(label,options,key){
+function chipSelect(label,options,key,obj){
+  const st=obj||state;
   const f=el("div","field");
   f.appendChild(el("label",null,label));
   const c=el("div","chips");
   options.forEach(o=>{
     const btn=el("button",null,o); btn.type="button";
-    if(state[key]===o)btn.classList.add("on");
-    btn.onclick=()=>{ state[key]=(state[key]===o?null:o); [...c.children].forEach(x=>x.classList.toggle("on",x.textContent===state[key])); save(); };
+    if(st[key]===o)btn.classList.add("on");
+    btn.onclick=()=>{ st[key]=(st[key]===o?null:o); [...c.children].forEach(x=>x.classList.toggle("on",x.textContent===st[key])); save(); };
     c.appendChild(btn);
   });
   f.appendChild(c);
@@ -324,13 +378,20 @@ function chipSelect(label,options,key){
       const row=el("div","action");
       row.appendChild(el("div","name",ac));
       const dots=el("div","dots");
-      const ds=[];
-      for(let i=1;i<=4;i++){
-        const d=el("button","dot"); d.type="button"; d.setAttribute("aria-label",ac+" "+i);
-        d.onclick=()=>{ const cur=state.actions[ac]; state.actions[ac]=(cur===i?i-1:i); ds.forEach((x,idx)=>x.classList.toggle("on",idx<state.actions[ac])); updRating(); save(); };
-        dots.appendChild(d); ds.push(d);
+      // The number of dots follows limit("action"): 3, or 4 once the crew unlocks Mastery.
+      function paintDots(){
+        const max=limit("action");
+        if(dots.children.length!==max){
+          dots.innerHTML="";
+          for(let i=1;i<=max;i++){
+            const d=el("button","dot"); d.type="button"; d.setAttribute("aria-label",ac+" "+i);
+            d.onclick=()=>{ const cur=state.actions[ac]; state.actions[ac]=(cur===i?i-1:i); paintDots(); updRating(); save(); };
+            dots.appendChild(d);
+          }
+        }
+        [...dots.children].forEach((x,idx)=>x.classList.toggle("on",idx<state.actions[ac]));
       }
-      ds.forEach((x,idx)=>x.classList.toggle("on",idx<state.actions[ac]));
+      paintDots(); refreshers.push(paintDots);
       row.appendChild(dots);
       wrap.appendChild(row);
     });
@@ -503,13 +564,28 @@ function updateGlance(){
     const e=el("span","chip"+(c.warn?" warn":""),c.t+" <b>"+c.v+"</b>");
     g.appendChild(e);
   });
+  const fx=document.getElementById("effects"), labels=crewEffectLabels();
+  fx.textContent=labels.length?"Crew upgrades: "+labels.join(" · "):"";
+  fx.hidden=!labels.length;
 }
 function rerenderLight(){ refreshers.forEach(f=>f()); updateGlance(); }
 updateGlance();
 
+/* ---------------- tabs ---------------- */
+const crewApp=document.getElementById("crew-app");
+function showTab(which){
+  const isCrew=which==="crew";
+  app.hidden=isCrew; crewApp.hidden=!isCrew;
+  document.getElementById("tab-sheet").classList.toggle("on",!isCrew);
+  document.getElementById("tab-crew").classList.toggle("on",isCrew);
+  window.scrollTo(0,0);
+}
+document.getElementById("tab-sheet").onclick=()=>showTab("sheet");
+document.getElementById("tab-crew").onclick=()=>showTab("crew");
+
 /* ---------------- backup ---------------- */
 document.getElementById("btn-export").onclick=()=>{
-  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify(Object.assign({},state,{crewData:crew}),null,2)],{type:"application/json"});
   const a=document.createElement("a");
   const nm=(state.name||PB.id).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||PB.id;
   a.href=URL.createObjectURL(blob); a.download="bitd-"+nm+".json"; a.click();
@@ -521,7 +597,12 @@ document.getElementById("file-import").onchange=(e)=>{
   const r=new FileReader();
   r.onload=()=>{
     try{
-      store.characters[store.activeId]=normalize(JSON.parse(r.result));  // old backups have no playbook field: treated as Spider
+      const data=JSON.parse(r.result);
+      const crewData=data.crewData; delete data.crewData;                // newer backups carry the crew too
+      const ch=normalize(data);                                          // old backups have no playbook field: treated as Spider
+      ch.crewId=state.crewId;                                            // keep pointing at this device's crew
+      store.characters[store.activeId]=ch;
+      if(crewData) store.crews[state.crewId]=normalizeCrew(crewData);
       saveNow(); location.reload();
     }catch(err){ alert("That file couldn't be read as a backup."); }
   };

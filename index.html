@@ -28,10 +28,17 @@
     </div>
     <div class="title-meta">Blades in the Dark · Character Sheet</div>
     <div class="glance" id="glance"></div>
+    <div class="effects" id="effects" hidden></div>
   </div>
 </header>
 
+<nav class="tabs"><div class="wrap">
+  <button type="button" id="tab-sheet" class="on">Character</button>
+  <button type="button" id="tab-crew">Crew</button>
+</div></nav>
+
 <div class="wrap" id="app"></div>
+<div class="wrap" id="crew-app" hidden></div>
 
 <div class="wrap">
   <details class="sec">
@@ -52,7 +59,9 @@
 
 <script src="data/core.js"></script>
 <script src="data/playbooks.js"></script>
+<script src="data/crews.js"></script>
 <script src="data/default-character.js"></script>
 <script src="app.js"></script>
+<script src="crew.js"></script>
 </body>
 </html>

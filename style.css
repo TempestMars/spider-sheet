@@ -235,3 +235,43 @@ textarea{resize:vertical; min-height:90px; line-height:1.55}
 
 :focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
+
+/* ---------- tabs + crew ---------- */
+nav.tabs{position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex; gap:8px; padding-top:8px; padding-bottom:8px}
+nav.tabs button{
+  flex:1; font-family:var(--display); text-transform:uppercase; letter-spacing:.14em; font-size:13px; font-weight:600;
+  background:var(--panel-2); border:1px solid var(--line); color:var(--muted); padding:10px 8px; border-radius:8px; cursor:pointer;
+}
+nav.tabs button.on{background:var(--brass); border-color:var(--brass); color:#1a1408}
+.effects{margin-top:10px; font-size:12px; color:var(--teal); font-family:var(--display); letter-spacing:.06em; text-transform:uppercase}
+[hidden]{display:none !important}
+
+.upg{border-top:1px solid var(--line-soft); padding:11px 0}
+.upg:first-of-type{border-top:0}
+.upg-head{display:flex; align-items:center; gap:10px; justify-content:space-between}
+.upg-name{font-family:var(--display); text-transform:uppercase; letter-spacing:.06em; font-size:14px; color:var(--text)}
+.upg-badge{font-family:var(--display); text-transform:uppercase; letter-spacing:.08em; font-size:11px; color:var(--teal); margin-top:3px}
+.upg-text{margin:4px 0 0; font-size:14px; color:var(--muted); line-height:1.5}
+.upg.done .upg-name{color:var(--brass)}
+.upg input.upg-in{flex:1}
+.upg .field{margin:10px 0 6px}
+.upg textarea{min-height:64px; margin-top:6px}
+.rm{background:none; border:0; color:var(--muted-2); font-size:11px; cursor:pointer; font-family:var(--display); text-transform:uppercase; letter-spacing:.1em; padding:6px 0}
+.rm:hover{color:var(--oxblood)}
+
+.cohort{border:1px solid var(--line); border-radius:8px; padding:12px; margin:10px 0; background:var(--panel-2)}
+.cohort input[type=text], .cohort textarea{background:var(--panel)}
+.co-stats{font-family:var(--display); text-transform:uppercase; letter-spacing:.08em; font-size:11px; color:var(--teal); margin:6px 0 2px}
+
+select.claimsel{
+  background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px;
+  padding:8px 10px; font-family:var(--display); font-size:12px; letter-spacing:.04em; max-width:100%;
+}
+.faction{display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line-soft); flex-wrap:wrap}
+.faction input{flex:1; min-width:120px}
+.stepper{display:flex; align-items:center; gap:6px}
+.stepper button{width:32px; height:32px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); cursor:pointer; font-size:16px}
+.stepper .sval{min-width:30px; text-align:center; font-family:var(--display); font-weight:600}
+.stepper .sval.pos{color:var(--teal)} .stepper .sval.neg{color:var(--oxblood)}
+.foot a{color:var(--muted)}

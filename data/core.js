@@ -35,5 +35,8 @@ window.CORE = {
 
   /* Base track sizes. Crew upgrades and other modifiers add to these
      (see limit() in app.js), so never hardcode these numbers elsewhere. */
-  LIMITS: {stress:9, trauma:4, coin:4, playbookXp:8, attrXp:6, stash:40},
+  LIMITS: {stress:9, trauma:4, coin:4, playbookXp:8, attrXp:6, stash:40,
+           action:3,            // max action rating until the crew unlocks Mastery
+           crewCoin:4, heat:9, wanted:4,
+           rep:12, crewXp:8},   // rep: 12 minus turf, never below 6 (check against your book)
 };
